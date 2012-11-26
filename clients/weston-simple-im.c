@@ -363,8 +363,10 @@ simple_im_key_handler(struct simple_im *keyboard,
 
 		if (cs) {
 			if (cs->keys[i + 1] == 0) {
+				input_method_context_preedit_cursor(keyboard->context,
+								    0);
 				input_method_context_preedit_string(keyboard->context,
-								    "", 0);
+								    "", "");
 				input_method_context_commit_string(keyboard->context,
 								   cs->text,
 								   strlen(cs->text));
@@ -376,9 +378,11 @@ simple_im_key_handler(struct simple_im *keyboard,
 					idx += xkb_keysym_to_utf8(cs->keys[j], text + idx, sizeof(text) - idx);
 				}
 
+				input_method_context_preedit_cursor(keyboard->context,
+								    strlen(text));
 				input_method_context_preedit_string(keyboard->context,
 								    text,
-								    strlen(text));
+								    text);
 			}
 		} else {
 			uint32_t j = 0, idx = 0;
@@ -386,8 +390,10 @@ simple_im_key_handler(struct simple_im *keyboard,
 			for (; j <= i; j++) {
 				idx += xkb_keysym_to_utf8(keyboard->compose_seq.keys[j], text + idx, sizeof(text) - idx);
 			}
+			input_method_context_preedit_cursor(keyboard->context,
+							    0);
 			input_method_context_preedit_string(keyboard->context,
-							    "", 0);
+							    "", "");
 			input_method_context_commit_string(keyboard->context,
 							   text,
 							   strlen(text));
