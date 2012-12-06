@@ -866,8 +866,8 @@ move_surface_to_workspace(struct desktop_shell *shell,
 	drop_focus_state(shell, from, surface);
 	wl_list_for_each(seat, &shell->compositor->seat_list, link)
 		if (seat->has_keyboard &&
-		    seat->keyboard.focus == &surface->surface)
-			wl_keyboard_set_focus(&seat->keyboard, NULL);
+		    seat->keyboard.keyboard.focus == &surface->surface)
+			wl_keyboard_set_focus(&seat->keyboard.keyboard, NULL);
 
 	weston_surface_damage_below(surface);
 }
@@ -3389,6 +3389,7 @@ switcher_destroy(struct switcher *switcher)
 {
 	struct weston_surface *surface;
 	struct wl_keyboard *keyboard = switcher->grab.keyboard;
+	struct weston_keyboard *weston_keyboard = (struct weston_keyboard *)keyboard;
 	struct workspace *ws = get_current_workspace(switcher->shell);
 
 	wl_list_for_each(surface, &ws->layer.surface_list, layer_link) {
@@ -3401,6 +3402,8 @@ switcher_destroy(struct switcher *switcher)
 			 (struct weston_seat *) keyboard->seat);
 	wl_list_remove(&switcher->listener.link);
 	wl_keyboard_end_grab(keyboard);
+	if (weston_keyboard->input_method_resource)
+		keyboard->grab = &weston_keyboard->input_method_grab;
 	free(switcher);
 }
 
@@ -3571,7 +3574,10 @@ debug_binding_key(struct wl_keyboard_grab *grab, uint32_t time,
 	}
 
 	if (terminate) {
+		struct weston_keyboard *weston_keyboard = (struct weston_keyboard *) grab->keyboard;
 		wl_keyboard_end_grab(grab->keyboard);
+		if (weston_keyboard->input_method_resource)
+			grab->keyboard->grab = &weston_keyboard->input_method_grab;
 		free(db);
 	}
 }
