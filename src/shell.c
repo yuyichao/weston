@@ -166,6 +166,7 @@ struct shell_surface {
 	struct weston_surface *surface;
 	struct wl_listener surface_destroy_listener;
 	struct weston_surface *parent;
+	/* XXX: missing parent_destroy_listener */
 	struct desktop_shell *shell;
 
 	enum shell_surface_type type, next_type;
@@ -183,7 +184,8 @@ struct shell_surface {
 	struct {
 		struct wl_pointer_grab grab;
 		int32_t x, y;
-		struct weston_transform parent_transform;
+		struct weston_matrix_pointer parent_transform;
+		struct wl_listener parent_dirty_listener;
 		int32_t initial_up;
 		struct wl_seat *seat;
 		uint32_t serial;
@@ -1870,6 +1872,16 @@ popup_grab_end(struct wl_pointer *pointer)
 }
 
 static void
+popup_notify_parent_geometry_dirty(struct wl_listener *listener, void *data)
+{
+	struct shell_surface *shsurf =
+		container_of(listener, struct shell_surface,
+			     popup.parent_dirty_listener);
+
+	weston_surface_geometry_dirty(shsurf->surface);
+}
+
+static void
 shell_map_popup(struct shell_surface *shsurf)
 {
 	struct wl_seat *seat = shsurf->popup.seat;
@@ -1879,20 +1891,14 @@ shell_map_popup(struct shell_surface *shsurf)
 	es->output = parent->output;
 	shsurf->popup.grab.interface = &popup_grab_interface;
 
-	weston_surface_update_transform(parent);
-	if (parent->transform.enabled) {
-		shsurf->popup.parent_transform.matrix =
-			parent->transform.matrix;
-	} else {
-		/* construct x, y translation matrix */
-		weston_matrix_init(&shsurf->popup.parent_transform.matrix);
-		shsurf->popup.parent_transform.matrix.d[12] =
-			parent->geometry.x;
-		shsurf->popup.parent_transform.matrix.d[13] =
-			parent->geometry.y;
-	}
+	shsurf->popup.parent_transform.matrix = &parent->transform.matrix;
+	shsurf->popup.parent_transform.parent = parent;
+	shsurf->popup.parent_dirty_listener.notify =
+		popup_notify_parent_geometry_dirty;
+	wl_signal_add(&parent->transform.dirty_signal,
+		      &shsurf->popup.parent_dirty_listener);
 	wl_list_insert(es->geometry.transformation_list.prev,
-		       &shsurf->popup.parent_transform.ptr.link);
+		       &shsurf->popup.parent_transform.link);
 
 	shsurf->popup.initial_up = 0;
 	weston_surface_set_position(es, shsurf->popup.x, shsurf->popup.y);
@@ -1941,6 +1947,9 @@ static const struct wl_shell_surface_interface shell_surface_implementation = {
 static void
 destroy_shell_surface(struct shell_surface *shsurf)
 {
+	if (shsurf->popup.parent_transform.parent)
+		wl_list_remove(&shsurf->popup.parent_dirty_listener.link);
+
 	if (shsurf->popup.grab.pointer)
 		wl_pointer_end_grab(shsurf->popup.grab.pointer);
 
@@ -2044,7 +2053,6 @@ create_shell_surface(void *shell, struct weston_surface *surface,
 	weston_transform_init(&shsurf->rotation.transform);
 	weston_matrix_init(&shsurf->rotation.rotation);
 
-	weston_transform_init(&shsurf->popup.parent_transform);
 	weston_transform_init(&shsurf->fullscreen.transform);
 
 	wl_list_init(&shsurf->workspace_transform.ptr.link);

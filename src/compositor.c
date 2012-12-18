@@ -301,6 +301,7 @@ weston_surface_create(struct weston_compositor *compositor)
 
 	pixman_region32_init(&surface->transform.boundingbox);
 	surface->transform.dirty = 1;
+	wl_signal_init(&surface->transform.dirty_signal);
 
 	surface->pending.buffer_destroy_listener.notify =
 		surface_handle_pending_buffer_destroy;
@@ -552,6 +553,8 @@ weston_surface_update_transform_enable(struct weston_surface *surface)
 
 	weston_matrix_init(matrix);
 	wl_list_for_each(ptr, &surface->geometry.transformation_list, link) {
+		if (ptr->parent)
+			weston_surface_update_transform(ptr->parent);
 		weston_matrix_multiply(matrix, ptr->matrix);
 	}
 
@@ -602,7 +605,12 @@ weston_surface_update_transform(struct weston_surface *surface)
 WL_EXPORT void
 weston_surface_geometry_dirty(struct weston_surface *surface)
 {
+	int emit = !surface->transform.dirty;
+
 	surface->transform.dirty = 1;
+
+	if (emit)
+		wl_signal_emit(&surface->transform.dirty_signal, surface);
 }
 
 WL_EXPORT void

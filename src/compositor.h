@@ -350,6 +350,16 @@ struct weston_compositor {
 
 struct weston_matrix_pointer {
 	struct weston_matrix *matrix;
+
+	/* If non-NULL, assume that the matrix is the complete transformation
+	 * of the parent surface. IOW, update_transform() on the parent first,
+	 * assuming it will make *matrix up-to-date.
+	 */
+	struct weston_surface *parent;
+	/* Setting up a parent destroy listener is left for the user,
+	 * because it usually has to handle parent's destruction anyway.
+	 */
+
 	struct wl_list link;
 };
 
@@ -424,6 +434,7 @@ struct weston_surface {
 	 */
 	struct {
 		int dirty;
+		struct wl_signal dirty_signal;
 
 		pixman_region32_t boundingbox;
 		pixman_region32_t opaque;
@@ -860,6 +871,7 @@ static inline void
 weston_transform_init(struct weston_transform *tform)
 {
 	tform->ptr.matrix = &tform->matrix;
+	tform->ptr.parent = NULL;
 }
 
 #endif
