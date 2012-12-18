@@ -603,7 +603,7 @@ surface_translate(struct weston_surface *surface, double d)
 	weston_matrix_init(&shsurf->workspace_transform.matrix);
 	weston_matrix_translate(&shsurf->workspace_transform.matrix,
 				0.0, d, 0.0);
-	surface->geometry.dirty = 1;
+	weston_surface_geometry_dirty(surface);
 }
 
 static void
@@ -679,7 +679,7 @@ workspace_deactivate_transforms(struct workspace *ws)
 			wl_list_remove(&shsurf->workspace_transform.link);
 			wl_list_init(&shsurf->workspace_transform.link);
 		}
-		shsurf->surface->geometry.dirty = 1;
+		weston_surface_geometry_dirty(surface);
 	}
 }
 
@@ -1520,7 +1520,7 @@ set_surface_type(struct shell_surface *shsurf)
 		if (!wl_list_empty(&shsurf->rotation.transform.link)) {
 			wl_list_remove(&shsurf->rotation.transform.link);
 			wl_list_init(&shsurf->rotation.transform.link);
-			shsurf->surface->geometry.dirty = 1;
+			weston_surface_geometry_dirty(shsurf->surface);
 			shsurf->saved_rotation_valid = true;
 		}
 		break;
@@ -2415,7 +2415,7 @@ surface_opacity_binding(struct wl_seat *seat, uint32_t time, uint32_t axis,
 	if (surface->alpha < step)
 		surface->alpha = step;
 
-	surface->geometry.dirty = 1;
+	weston_surface_geometry_dirty(surface);
 	weston_surface_damage(surface);
 }
 
@@ -2509,7 +2509,7 @@ rotate_grab_motion(struct wl_pointer_grab *grab,
 	r = sqrtf(dx * dx + dy * dy);
 
 	wl_list_remove(&shsurf->rotation.transform.link);
-	shsurf->surface->geometry.dirty = 1;
+	weston_surface_geometry_dirty(shsurf->surface);
 
 	if (r > 20.0f) {
 		struct weston_matrix *matrix =
@@ -2799,7 +2799,7 @@ show_input_panels(struct wl_listener *listener, void *data)
 		ws = surface->surface;
 		wl_list_insert(&shell->input_panel_layer.surface_list,
 			       &ws->layer_link);
-		ws->geometry.dirty = 1;
+		weston_surface_geometry_dirty(ws);
 		weston_surface_update_transform(ws);
 		weston_surface_damage(ws);
 		weston_slide_run(ws, ws->geometry.height, 0, NULL, NULL);
@@ -2913,7 +2913,7 @@ map(struct desktop_shell *shell, struct weston_surface *surface,
 
 	surface->geometry.width = width;
 	surface->geometry.height = height;
-	surface->geometry.dirty = 1;
+	weston_surface_geometry_dirty(surface);
 
 	/* initial positioning, see also configure() */
 	switch (surface_type) {
@@ -3007,11 +3007,7 @@ configure(struct desktop_shell *shell, struct weston_surface *surface,
 	if (shsurf)
 		surface_type = shsurf->type;
 
-	surface->geometry.x = x;
-	surface->geometry.y = y;
-	surface->geometry.width = width;
-	surface->geometry.height = height;
-	surface->geometry.dirty = 1;
+	weston_surface_configure(surface, x, y, width, height);
 
 	switch (surface_type) {
 	case SHELL_SURFACE_FULLSCREEN:
@@ -3457,7 +3453,7 @@ switcher_next(struct switcher *switcher)
 				next = surface;
 			prev = surface;
 			surface->alpha = 0.25;
-			surface->geometry.dirty = 1;
+			weston_surface_geometry_dirty(surface);
 			weston_surface_damage(surface);
 			break;
 		default:
@@ -3466,7 +3462,7 @@ switcher_next(struct switcher *switcher)
 
 		if (is_black_surface(surface, NULL)) {
 			surface->alpha = 0.25;
-			surface->geometry.dirty = 1;
+			weston_surface_geometry_dirty(surface);
 			weston_surface_damage(surface);
 		}
 	}

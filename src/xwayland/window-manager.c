@@ -757,7 +757,7 @@ weston_wm_window_draw_decoration(void *data)
 					       x - 1, y - 1,
 					       window->width + 2,
 					       window->height + 2);
-		window->surface->geometry.dirty = 1;
+		weston_surface_geometry_dirty(window->surface);
 
 		pixman_region32_init_rect(&window->surface->input,
 					  t->margin, t->margin,
@@ -778,7 +778,7 @@ weston_wm_window_schedule_repaint(struct weston_wm_window *window)
 			pixman_region32_fini(&window->surface->pending.opaque);
 			pixman_region32_init_rect(&window->surface->pending.opaque, 0, 0,
 						  width, height);
-			window->surface->geometry.dirty = 1;
+			weston_surface_geometry_dirty(window->surface);
 		}
 		return;
 	}

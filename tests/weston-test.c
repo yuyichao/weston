@@ -87,7 +87,7 @@ test_surface_configure(struct weston_surface *surface, int32_t sx, int32_t sy)
 	surface->geometry.y = test_surface->y;
 	surface->geometry.width = surface->buffer_ref.buffer->width;
 	surface->geometry.height = surface->buffer_ref.buffer->height;
-	surface->geometry.dirty = 1;
+	weston_surface_geometry_dirty(surface);
 
 	if (!weston_surface_is_mapped(surface))
 		weston_surface_update_transform(surface);

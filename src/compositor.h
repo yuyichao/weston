@@ -368,8 +368,8 @@ struct weston_region {
  * To add a transformation to a surface, create a struct weston_transform, and
  * add it to the list surface->geometry.transformation_list. Whenever you
  * change the list, anything under surface->geometry, or anything in the
- * weston_transforms linked into the list, you must set
- * surface->geometry.dirty = 1.
+ * weston_transforms linked into the list, you must call
+ * weston_surface_geometry_dirty().
  *
  * The order in the list defines the order of transformations. Let the list
  * contain the transformation matrices M1, ..., Mn as head to tail. The
@@ -393,17 +393,17 @@ struct weston_surface {
 	struct weston_compositor *compositor;
 	pixman_region32_t clip;
 	pixman_region32_t damage;
-	pixman_region32_t opaque;
+	pixman_region32_t opaque;        /* geometry dirty */
 	pixman_region32_t input;
 	struct wl_list link;
 	struct wl_list layer_link;
-	float alpha;
+	float alpha;                     /* geometry dirty */
 	struct weston_plane *plane;
 
 	void *renderer_state;
 
 	/* Surface geometry state, mutable.
-	 * If you change anything, set dirty = 1.
+	 * If you change anything, call weston_surface_geometry_dirty().
 	 * That includes the transformations referenced from the list.
 	 */
 	struct {
@@ -412,14 +412,14 @@ struct weston_surface {
 
 		/* struct weston_transform */
 		struct wl_list transformation_list;
-
-		int dirty;
 	} geometry;
 
 	/* State derived from geometry state, read-only.
 	 * This is updated by weston_surface_update_transform().
 	 */
 	struct {
+		int dirty;
+
 		pixman_region32_t boundingbox;
 		pixman_region32_t opaque;
 
@@ -495,6 +495,9 @@ enum weston_key_state_update {
 
 void
 weston_surface_update_transform(struct weston_surface *surface);
+
+void
+weston_surface_geometry_dirty(struct weston_surface *surface);
 
 void
 weston_surface_to_global_fixed(struct weston_surface *surface,
