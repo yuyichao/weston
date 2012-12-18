@@ -423,8 +423,10 @@ struct weston_surface {
 		pixman_region32_t boundingbox;
 		pixman_region32_t opaque;
 
-		/* matrix and inverse are used only if enabled = 1.
-		 * If enabled = 0, use x, y, width, height directly.
+		/* 'inverse' is used only if enabled = 1.
+		 * 'matrix' can be used regardless of 'enabled', to allow
+		 * inheriting transformation.
+		 * If enabled = 0, you can use x, y, width, height instead.
 		 */
 		int enabled;
 		struct weston_matrix matrix;

@@ -514,6 +514,11 @@ weston_surface_update_transform_disable(struct weston_surface *surface)
 	surface->geometry.x = roundf(surface->geometry.x);
 	surface->geometry.y = roundf(surface->geometry.y);
 
+	/* Otherwise identity matrix, but with x and y translation. */
+	weston_matrix_init(&surface->transform.matrix);
+	surface->transform.matrix.d[12] = surface->geometry.x;
+	surface->transform.matrix.d[13] = surface->geometry.y;
+
 	pixman_region32_init_rect(&surface->transform.boundingbox,
 				  surface->geometry.x,
 				  surface->geometry.y,
