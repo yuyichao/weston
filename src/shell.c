@@ -596,9 +596,9 @@ surface_translate(struct weston_surface *surface, double d)
 	struct weston_transform *transform;
 
 	transform = &shsurf->workspace_transform;
-	if (wl_list_empty(&transform->link))
+	if (wl_list_empty(&transform->ptr.link))
 		wl_list_insert(surface->geometry.transformation_list.prev,
-			       &shsurf->workspace_transform.link);
+			       &shsurf->workspace_transform.ptr.link);
 
 	weston_matrix_init(&shsurf->workspace_transform.matrix);
 	weston_matrix_translate(&shsurf->workspace_transform.matrix,
@@ -675,9 +675,9 @@ workspace_deactivate_transforms(struct workspace *ws)
 
 	wl_list_for_each(surface, &ws->layer.surface_list, layer_link) {
 		shsurf = get_shell_surface(surface);
-		if (!wl_list_empty(&shsurf->workspace_transform.link)) {
-			wl_list_remove(&shsurf->workspace_transform.link);
-			wl_list_init(&shsurf->workspace_transform.link);
+		if (!wl_list_empty(&shsurf->workspace_transform.ptr.link)) {
+			wl_list_remove(&shsurf->workspace_transform.ptr.link);
+			wl_list_init(&shsurf->workspace_transform.ptr.link);
 		}
 		weston_surface_geometry_dirty(surface);
 	}
@@ -928,9 +928,9 @@ take_surface_to_workspace_by_seat(struct desktop_shell *shell,
 		update_workspace(shell, index, from, to);
 	else {
 		shsurf = get_shell_surface(surface);
-		if (wl_list_empty(&shsurf->workspace_transform.link))
+		if (wl_list_empty(&shsurf->workspace_transform.ptr.link))
 			wl_list_insert(&shell->workspaces.anim_sticky_list,
-				       &shsurf->workspace_transform.link);
+				       &shsurf->workspace_transform.ptr.link);
 
 		animate_workspace_change(shell, index, from, to);
 	}
@@ -1443,8 +1443,8 @@ shell_unset_fullscreen(struct shell_surface *shsurf)
 	}
 	shsurf->fullscreen.type = WL_SHELL_SURFACE_FULLSCREEN_METHOD_DEFAULT;
 	shsurf->fullscreen.framerate = 0;
-	wl_list_remove(&shsurf->fullscreen.transform.link);
-	wl_list_init(&shsurf->fullscreen.transform.link);
+	wl_list_remove(&shsurf->fullscreen.transform.ptr.link);
+	wl_list_init(&shsurf->fullscreen.transform.ptr.link);
 	if (shsurf->fullscreen.black_surface)
 		weston_surface_destroy(shsurf->fullscreen.black_surface);
 	shsurf->fullscreen.black_surface = NULL;
@@ -1453,7 +1453,7 @@ shell_unset_fullscreen(struct shell_surface *shsurf)
 				    shsurf->saved_x, shsurf->saved_y);
 	if (shsurf->saved_rotation_valid) {
 		wl_list_insert(&shsurf->surface->geometry.transformation_list,
-        	               &shsurf->rotation.transform.link);
+        	               &shsurf->rotation.transform.ptr.link);
 		shsurf->saved_rotation_valid = false;
 	}
 
@@ -1517,9 +1517,9 @@ set_surface_type(struct shell_surface *shsurf)
 		shsurf->saved_y = surface->geometry.y;
 		shsurf->saved_position_valid = true;
 
-		if (!wl_list_empty(&shsurf->rotation.transform.link)) {
-			wl_list_remove(&shsurf->rotation.transform.link);
-			wl_list_init(&shsurf->rotation.transform.link);
+		if (!wl_list_empty(&shsurf->rotation.transform.ptr.link)) {
+			wl_list_remove(&shsurf->rotation.transform.ptr.link);
+			wl_list_init(&shsurf->rotation.transform.ptr.link);
 			weston_surface_geometry_dirty(shsurf->surface);
 			shsurf->saved_rotation_valid = true;
 		}
@@ -1697,9 +1697,9 @@ shell_configure_fullscreen(struct shell_surface *shsurf)
 				(float) surface->geometry.height;
 
 		weston_matrix_scale(matrix, scale, scale, 1);
-		wl_list_remove(&shsurf->fullscreen.transform.link);
+		wl_list_remove(&shsurf->fullscreen.transform.ptr.link);
 		wl_list_insert(&surface->geometry.transformation_list,
-			       &shsurf->fullscreen.transform.link);
+			       &shsurf->fullscreen.transform.ptr.link);
 		x = output->x + (output->width - surface->geometry.width * scale) / 2;
 		y = output->y + (output->height - surface->geometry.height * scale) / 2;
 		weston_surface_set_position(surface, x, y);
@@ -1892,7 +1892,7 @@ shell_map_popup(struct shell_surface *shsurf)
 			parent->geometry.y;
 	}
 	wl_list_insert(es->geometry.transformation_list.prev,
-		       &shsurf->popup.parent_transform.link);
+		       &shsurf->popup.parent_transform.ptr.link);
 
 	shsurf->popup.initial_up = 0;
 	weston_surface_set_position(es, shsurf->popup.x, shsurf->popup.y);
@@ -2029,7 +2029,7 @@ create_shell_surface(void *shell, struct weston_surface *surface,
 	shsurf->fullscreen.framerate = 0;
 	shsurf->fullscreen.black_surface = NULL;
 	shsurf->ping_timer = NULL;
-	wl_list_init(&shsurf->fullscreen.transform.link);
+	wl_list_init(&shsurf->fullscreen.transform.ptr.link);
 
 	wl_signal_init(&shsurf->resource.destroy_signal);
 	shsurf->surface_destroy_listener.notify = shell_handle_surface_destroy;
@@ -2040,10 +2040,15 @@ create_shell_surface(void *shell, struct weston_surface *surface,
 	wl_list_init(&shsurf->link);
 
 	/* empty when not in use */
-	wl_list_init(&shsurf->rotation.transform.link);
+	wl_list_init(&shsurf->rotation.transform.ptr.link);
+	weston_transform_init(&shsurf->rotation.transform);
 	weston_matrix_init(&shsurf->rotation.rotation);
 
-	wl_list_init(&shsurf->workspace_transform.link);
+	weston_transform_init(&shsurf->popup.parent_transform);
+	weston_transform_init(&shsurf->fullscreen.transform);
+
+	wl_list_init(&shsurf->workspace_transform.ptr.link);
+	weston_transform_init(&shsurf->workspace_transform);
 
 	shsurf->type = SHELL_SURFACE_NONE;
 	shsurf->next_type = SHELL_SURFACE_NONE;
@@ -2508,7 +2513,7 @@ rotate_grab_motion(struct wl_pointer_grab *grab,
 	dy = wl_fixed_to_double(pointer->y) - rotate->center.y;
 	r = sqrtf(dx * dx + dy * dy);
 
-	wl_list_remove(&shsurf->rotation.transform.link);
+	wl_list_remove(&shsurf->rotation.transform.ptr.link);
 	weston_surface_geometry_dirty(shsurf->surface);
 
 	if (r > 20.0f) {
@@ -2529,9 +2534,9 @@ rotate_grab_motion(struct wl_pointer_grab *grab,
 
 		wl_list_insert(
 			&shsurf->surface->geometry.transformation_list,
-			&shsurf->rotation.transform.link);
+			&shsurf->rotation.transform.ptr.link);
 	} else {
-		wl_list_init(&shsurf->rotation.transform.link);
+		wl_list_init(&shsurf->rotation.transform.ptr.link);
 		weston_matrix_init(&shsurf->rotation.rotation);
 		weston_matrix_init(&rotate->rotation);
 	}

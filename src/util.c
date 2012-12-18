@@ -115,7 +115,7 @@ weston_surface_animation_destroy(struct weston_surface_animation *animation)
 {
 	wl_list_remove(&animation->animation.link);
 	wl_list_remove(&animation->listener.link);
-	wl_list_remove(&animation->transform.link);
+	wl_list_remove(&animation->transform.ptr.link);
 	weston_surface_geometry_dirty(animation->surface);
 	if (animation->done)
 		animation->done(animation, animation->data);
@@ -177,8 +177,9 @@ weston_surface_animation_run(struct weston_surface *surface,
 	animation->start = start;
 	animation->stop = stop;
 	weston_matrix_init(&animation->transform.matrix);
+	weston_transform_init(&animation->transform);
 	wl_list_insert(&surface->geometry.transformation_list,
-		       &animation->transform.link);
+		       &animation->transform.ptr.link);
 	weston_spring_init(&animation->spring, 200.0, 0.0, 1.0);
 	animation->spring.friction = 700;
 	animation->animation.frame_counter = 0;

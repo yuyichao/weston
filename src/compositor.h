@@ -37,11 +37,6 @@
 	const __typeof__( ((type *)0)->member ) *__mptr = (ptr);	\
 	(type *)( (char *)__mptr - offsetof(type,member) );})
 
-struct weston_transform {
-	struct weston_matrix matrix;
-	struct wl_list link;
-};
-
 struct weston_surface;
 struct shell_surface;
 struct weston_seat;
@@ -353,6 +348,16 @@ struct weston_compositor {
 	struct weston_xkb_info xkb_info;
 };
 
+struct weston_matrix_pointer {
+	struct weston_matrix *matrix;
+	struct wl_list link;
+};
+
+struct weston_transform {
+	struct weston_matrix matrix;
+	struct weston_matrix_pointer ptr;
+};
+
 struct weston_buffer_reference {
 	struct wl_buffer *buffer;
 	struct wl_listener destroy_listener;
@@ -365,8 +370,8 @@ struct weston_region {
 
 /* Using weston_surface transformations
  *
- * To add a transformation to a surface, create a struct weston_transform, and
- * add it to the list surface->geometry.transformation_list. Whenever you
+ * To add a transformation to a surface, create a struct weston_matrix_pointer,
+ * and add it to the list surface->geometry.transformation_list. Whenever you
  * change the list, anything under surface->geometry, or anything in the
  * weston_transforms linked into the list, you must call
  * weston_surface_geometry_dirty().
@@ -410,7 +415,7 @@ struct weston_surface {
 		float x, y; /* surface translation on display */
 		int32_t width, height;
 
-		/* struct weston_transform */
+		/* struct weston_matrix_pointer::link */
 		struct wl_list transformation_list;
 	} geometry;
 
@@ -850,5 +855,11 @@ pixman_box32_t
 weston_transformed_rect(int width, int height,
 			enum wl_output_transform transform,
 			pixman_box32_t rect);
+
+static inline void
+weston_transform_init(struct weston_transform *tform)
+{
+	tform->ptr.matrix = &tform->matrix;
+}
 
 #endif

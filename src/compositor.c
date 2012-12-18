@@ -293,9 +293,12 @@ weston_surface_create(struct weston_compositor *compositor)
 	wl_list_init(&surface->frame_callback_list);
 
 	wl_list_init(&surface->geometry.transformation_list);
-	wl_list_insert(&surface->geometry.transformation_list,
-		       &surface->transform.position.link);
+
 	weston_matrix_init(&surface->transform.position.matrix);
+	weston_transform_init(&surface->transform.position);
+	wl_list_insert(&surface->geometry.transformation_list,
+		       &surface->transform.position.ptr.link);
+
 	pixman_region32_init(&surface->transform.boundingbox);
 	surface->transform.dirty = 1;
 
@@ -539,7 +542,7 @@ weston_surface_update_transform_enable(struct weston_surface *surface)
 {
 	struct weston_matrix *matrix = &surface->transform.matrix;
 	struct weston_matrix *inverse = &surface->transform.inverse;
-	struct weston_transform *tform;
+	struct weston_matrix_pointer *ptr;
 
 	surface->transform.enabled = 1;
 
@@ -548,8 +551,9 @@ weston_surface_update_transform_enable(struct weston_surface *surface)
 	surface->transform.position.matrix.d[13] = surface->geometry.y;
 
 	weston_matrix_init(matrix);
-	wl_list_for_each(tform, &surface->geometry.transformation_list, link)
-		weston_matrix_multiply(matrix, &tform->matrix);
+	wl_list_for_each(ptr, &surface->geometry.transformation_list, link) {
+		weston_matrix_multiply(matrix, ptr->matrix);
+	}
 
 	if (weston_matrix_invert(inverse, matrix) < 0) {
 		/* Oops, bad total transformation, not invertible */
@@ -581,9 +585,9 @@ weston_surface_update_transform(struct weston_surface *surface)
 
 	/* transform.position is always in transformation_list */
 	if (surface->geometry.transformation_list.next ==
-	    &surface->transform.position.link &&
+	    &surface->transform.position.ptr.link &&
 	    surface->geometry.transformation_list.prev ==
-	    &surface->transform.position.link) {
+	    &surface->transform.position.ptr.link) {
 		weston_surface_update_transform_disable(surface);
 	} else {
 		if (weston_surface_update_transform_enable(surface) < 0)
