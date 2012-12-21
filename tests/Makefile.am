@@ -8,6 +8,7 @@ weston_tests =				\
 	keyboard-test			\
 	event-test			\
 	button-test			\
+	subsurface-test			\
 	text-test
 
 TESTS_ENVIRONMENT = $(SHELL) $(top_srcdir)/tests/weston-tests-env
@@ -73,6 +74,9 @@ text_test_SOURCES =				\
 	../clients/text-protocol.c		\
 	$(weston_test_client_src)
 text_test_LDADD = $(weston_test_client_libs)
+
+subsurface_test_SOURCES = subsurface-test.c $(weston_test_client_src)
+subsurface_test_LDADD = $(weston_test_client_libs)
 
 matrix_test_SOURCES =				\
 	matrix-test.c				\
