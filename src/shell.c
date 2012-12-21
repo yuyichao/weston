@@ -875,6 +875,7 @@ move_surface_to_workspace(struct desktop_shell *shell,
 	wl_list_insert(&to->layer.surface_list, &surface->layer_link);
 
 	drop_focus_state(shell, from, surface);
+	/* XXX: what about foci on sub-surfaces? */
 	wl_list_for_each(seat, &shell->compositor->seat_list, link)
 		if (seat->has_keyboard &&
 		    seat->keyboard.keyboard.focus == &surface->surface)
@@ -896,6 +897,7 @@ take_surface_to_workspace_by_seat(struct desktop_shell *shell,
 	struct workspace *to;
 	struct focus_state *state;
 
+	surface = weston_surface_get_parent(surface);
 	if (surface == NULL ||
 	    index == shell->workspaces.current)
 		return;
@@ -954,6 +956,7 @@ workspace_manager_move_surface(struct wl_client *client,
 	struct weston_surface *surface =
 		(struct weston_surface *) surface_resource;
 
+	/* XXX: for a sub-surface, move the parent surface or fail? */
 	move_surface_to_workspace(shell, surface, workspace);
 }
 
@@ -2357,6 +2360,7 @@ move_binding(struct wl_seat *seat, uint32_t time, uint32_t button, void *data)
 		(struct weston_surface *) seat->pointer->focus;
 	struct shell_surface *shsurf;
 
+	surface = weston_surface_get_parent(surface);
 	if (surface == NULL)
 		return;
 
@@ -2376,6 +2380,7 @@ resize_binding(struct wl_seat *seat, uint32_t time, uint32_t button, void *data)
 	int32_t x, y;
 	struct shell_surface *shsurf;
 
+	surface = weston_surface_get_parent(surface);
 	if (surface == NULL)
 		return;
 
@@ -2414,6 +2419,8 @@ surface_opacity_binding(struct wl_seat *seat, uint32_t time, uint32_t axis,
 	struct weston_surface *surface =
 		(struct weston_surface *) seat->pointer->focus;
 
+	/* XXX: broken for windows containing sub-surfaces */
+	surface = weston_surface_get_parent(surface);
 	if (surface == NULL)
 		return;
 
@@ -2604,6 +2611,7 @@ rotate_binding(struct wl_seat *seat, uint32_t time, uint32_t button,
 	float dx, dy;
 	float r;
 
+	base_surface = weston_surface_get_parent(base_surface);
 	if (base_surface == NULL)
 		return;
 
@@ -2718,6 +2726,7 @@ click_to_activate_binding(struct wl_seat *seat, uint32_t time, uint32_t button,
 	struct weston_surface *upper;
 
 	focus = (struct weston_surface *) seat->pointer->focus;
+	focus = weston_surface_get_parent(focus);
 	if (!focus)
 		return;
 

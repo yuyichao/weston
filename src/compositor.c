@@ -1643,6 +1643,19 @@ subsurface_configure(struct weston_surface *surface, int32_t dx, int32_t dy)
 	}
 }
 
+WL_EXPORT struct weston_surface *
+weston_surface_get_parent(struct weston_surface *surface)
+{
+	struct weston_subsurface *sub;
+
+	while (surface && surface->configure == subsurface_configure) {
+		sub = surface->private;
+		surface = sub->parent;
+	}
+
+	return surface;
+}
+
 static void
 subsurface_set_position(struct wl_client *client,
 			struct wl_resource *resource, int32_t x, int32_t y)

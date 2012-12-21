@@ -735,6 +735,9 @@ weston_surface_move_to_plane(struct weston_surface *surface,
 void
 weston_surface_unmap(struct weston_surface *surface);
 
+struct weston_surface *
+weston_surface_get_parent(struct weston_surface *surface);
+
 void
 weston_buffer_post_release(struct wl_buffer *buffer);
 
