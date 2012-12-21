@@ -378,6 +378,21 @@ struct weston_region {
 	pixman_region32_t region;
 };
 
+struct weston_subsurface {
+	struct wl_resource resource;
+
+	/* guaranteed to be valid and non-NULL */
+	struct weston_surface *surface;
+	struct wl_listener surface_destroy_listener;
+
+	struct weston_surface *parent;
+	struct wl_listener parent_destroy_listener;
+	struct wl_list parent_link;
+
+	struct weston_matrix_pointer parent_transform;
+	struct wl_listener parent_dirty_listener;
+};
+
 /* Using weston_surface transformations
  *
  * To add a transformation to a surface, create a struct weston_matrix_pointer,
@@ -502,6 +517,11 @@ struct weston_surface {
 	 */
 	void (*configure)(struct weston_surface *es, int32_t sx, int32_t sy);
 	void *private;
+
+	/* Parent's list of its sub-surfaces, weston_subsurface:parent_link.
+	 * Contains also the parent itself as a dummy weston_subsurface.
+	 */
+	struct wl_list subsurface_list;
 };
 
 enum weston_key_state_update {

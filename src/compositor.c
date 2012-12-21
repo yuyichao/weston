@@ -310,6 +310,8 @@ weston_surface_create(struct weston_compositor *compositor)
 	region_init_infinite(&surface->pending.input);
 	wl_list_init(&surface->pending.frame_callback_list);
 
+	wl_list_init(&surface->subsurface_list);
+
 	return surface;
 }
 
@@ -868,6 +870,8 @@ destroy_surface(struct wl_resource *resource)
 			     struct weston_surface, surface.resource);
 	struct weston_compositor *compositor = surface->compositor;
 	struct weston_frame_callback *cb, *next;
+
+	assert(wl_list_empty(&surface->subsurface_list));
 
 	if (weston_surface_is_mapped(surface))
 		weston_surface_unmap(surface);
@@ -1582,6 +1586,364 @@ static const struct wl_compositor_interface compositor_interface = {
 	compositor_create_surface,
 	compositor_create_region
 };
+
+static void
+subsurface_configure(struct weston_surface *surface, int32_t dx, int32_t dy)
+{
+	int32_t x, y;
+
+	fprintf(stderr, "%s(surface %p, %d, %d)\n",
+		__func__, surface, dx, dy);
+
+	x = surface->geometry.x + dx;
+	y = surface->geometry.y + dy;
+	weston_surface_configure(surface, x, y,
+				 weston_surface_buffer_width(surface),
+				 weston_surface_buffer_height(surface));
+
+	/* No need to check parent mappedness, because if parent is not
+	 * mapped, parent is not in a visible layer, so this sub-surface
+	 * will not be drawn either.
+	 */
+	if (!weston_surface_is_mapped(surface)) {
+		fprintf(stderr, "%s: map!\n", __func__);
+		wl_list_init(&surface->layer_link);
+		weston_surface_update_transform(surface);
+	}
+}
+
+static void
+subsurface_set_position(struct wl_client *client,
+			struct wl_resource *resource, int32_t x, int32_t y)
+{
+	struct weston_subsurface *sub = resource->data;
+
+	fprintf(stderr, "%s(surface %p, %d, %d)\n",
+		__func__, sub->surface, x, y);
+
+	weston_surface_set_position(sub->surface, x, y);
+}
+
+static struct weston_subsurface *
+subsurface_from_surface(struct weston_surface *surface)
+{
+	struct weston_subsurface *sub;
+
+	if (surface->configure == subsurface_configure)
+		return surface->private;
+
+	wl_list_for_each(sub, &surface->subsurface_list, parent_link)
+		if (sub->surface == surface)
+			return sub;
+
+	return NULL;
+}
+
+static struct weston_subsurface *
+subsurface_sibling_check(struct weston_subsurface *sub,
+			 struct weston_surface *surface,
+			 const char *request)
+{
+	struct weston_subsurface *sibling;
+
+	sibling = subsurface_from_surface(surface);
+
+	if (!sibling) {
+		wl_resource_post_error(&sub->resource,
+			WL_SUBSURFACE_ERROR_BAD_SURFACE,
+			"%s: wl_surface@%d is not a parent or sibling",
+			request, surface->surface.resource.object.id);
+		return NULL;
+	}
+
+	if (sibling->parent != sub->parent) {
+		wl_resource_post_error(&sub->resource,
+			WL_SUBSURFACE_ERROR_BAD_SURFACE,
+			"%s: wl_surface@%d has a different parent",
+			request, surface->surface.resource.object.id);
+		return NULL;
+	}
+
+	return sibling;
+}
+
+static void
+subsurface_place_above(struct wl_client *client,
+		       struct wl_resource *resource,
+		       struct wl_resource *sibling_resource)
+{
+	struct weston_subsurface *sub = resource->data;
+	struct weston_surface *surface = sibling_resource->data;
+	struct weston_subsurface *sibling;
+
+	sibling = subsurface_sibling_check(sub, surface, "place_above");
+	if (!sibling)
+		return;
+
+	fprintf(stderr, "%p %s of %p\n", sub->surface, __func__,
+		sibling->surface);
+
+	wl_list_remove(&sub->parent_link);
+	wl_list_insert(sibling->parent_link.prev, &sub->parent_link);
+}
+
+static void
+subsurface_place_below(struct wl_client *client,
+		       struct wl_resource *resource,
+		       struct wl_resource *sibling_resource)
+{
+	struct weston_subsurface *sub = resource->data;
+	struct weston_surface *surface = sibling_resource->data;
+	struct weston_subsurface *sibling;
+
+	sibling = subsurface_sibling_check(sub, surface, "place_below");
+	if (!sibling)
+		return;
+
+	fprintf(stderr, "%p %s of %p\n", sub->surface, __func__,
+		sibling->surface);
+
+	wl_list_remove(&sub->parent_link);
+	wl_list_insert(&sibling->parent_link, &sub->parent_link);
+}
+
+static const struct wl_subsurface_interface subsurface_interface = {
+	subsurface_set_position,
+	subsurface_place_above,
+	subsurface_place_below
+};
+
+static void
+subsurface_handle_surface_destroy(struct wl_listener *listener, void *data)
+{
+	struct weston_subsurface *sub =
+		container_of(listener, struct weston_subsurface,
+			     surface_destroy_listener);
+	assert(data == &sub->surface->surface.resource);
+
+	fprintf(stderr, "%s: surface %p\n", __func__, sub->surface);
+
+	if (sub->surface != sub->parent)
+		wl_resource_destroy(&sub->resource);
+	else {
+		/* parent does not have a wl_subsurface resource */
+		wl_list_remove(&sub->parent_link);
+		free(sub);
+	}
+}
+
+static void
+subsurface_handle_parent_destroy(struct wl_listener *listener, void *data)
+{
+	struct weston_subsurface *sub =
+		container_of(listener, struct weston_subsurface,
+			     parent_destroy_listener);
+	assert(data == &sub->parent->surface.resource);
+	assert(sub->surface != sub->parent);
+
+	fprintf(stderr, "%s: surface %p, parent %p\n",
+		__func__, sub->surface, sub->parent);
+
+	if (weston_surface_is_mapped(sub->surface))
+		weston_surface_unmap(sub->surface);
+
+	sub->parent = NULL;
+	wl_list_remove(&sub->parent_link);
+	wl_list_remove(&sub->parent_transform.link);
+	wl_list_remove(&sub->parent_dirty_listener.link);
+}
+
+static void
+subsurface_destroy(struct wl_resource *resource)
+{
+	struct weston_subsurface *sub = resource->data;
+
+	fprintf(stderr, "%s: surface %p\n", __func__, sub->surface);
+
+	assert(sub->surface);
+	assert(sub->surface->configure == subsurface_configure);
+	assert(sub->surface->private == sub);
+	sub->surface->configure = NULL;
+	sub->surface->private = NULL;
+	wl_list_remove(&sub->surface_destroy_listener.link);
+
+	if (sub->parent) {
+		wl_list_remove(&sub->parent_transform.link);
+		wl_list_remove(&sub->parent_dirty_listener.link);
+		wl_list_remove(&sub->parent_link);
+		wl_list_remove(&sub->parent_destroy_listener.link);
+	}
+
+	free(sub);
+}
+
+static void
+subsurface_notify_parent_geometry_dirty(struct wl_listener *listener,
+					void *data)
+{
+	struct weston_subsurface *sub =
+		container_of(listener, struct weston_subsurface,
+			     parent_dirty_listener);
+
+	weston_surface_geometry_dirty(sub->surface);
+}
+
+static void
+weston_subsurface_link(struct weston_subsurface *sub,
+		       struct weston_surface *surface,
+		       struct weston_surface *parent)
+{
+	sub->surface = surface;
+	sub->surface_destroy_listener.notify =
+		subsurface_handle_surface_destroy;
+	wl_signal_add(&surface->surface.resource.destroy_signal,
+		      &sub->surface_destroy_listener);
+
+	sub->parent = parent;
+
+	if (sub->surface != sub->parent) {
+		sub->parent_destroy_listener.notify =
+			subsurface_handle_parent_destroy;
+		wl_signal_add(&parent->surface.resource.destroy_signal,
+			      &sub->parent_destroy_listener);
+
+		sub->parent_transform.matrix = &parent->transform.matrix;
+		sub->parent_transform.parent = parent;
+		sub->parent_dirty_listener.notify =
+			subsurface_notify_parent_geometry_dirty;
+		wl_signal_add(&parent->transform.dirty_signal,
+			      &sub->parent_dirty_listener);
+		wl_list_insert(surface->geometry.transformation_list.prev,
+			       &sub->parent_transform.link);
+	}
+
+	wl_list_insert(&parent->subsurface_list, &sub->parent_link);
+}
+
+static struct weston_subsurface *
+weston_subsurface_create(uint32_t id, struct weston_surface *surface,
+			 struct weston_surface *parent)
+{
+	struct weston_subsurface *sub;
+	uint32_t ret;
+
+	sub = malloc(sizeof *sub);
+	if (!sub)
+		return NULL;
+
+	sub->resource.destroy = subsurface_destroy;
+	sub->resource.data = sub;
+	sub->resource.object.id = id;
+	sub->resource.object.interface = &wl_subsurface_interface;
+	sub->resource.object.implementation =
+		(void (**)(void))&subsurface_interface;
+
+	ret = wl_client_add_resource(surface->surface.resource.client,
+				     &sub->resource);
+	if (ret == 0) {
+		free(sub);
+		return NULL;
+	}
+
+	weston_subsurface_link(sub, surface, parent);
+
+	return sub;
+}
+
+/* Create a dummy subsurface for having the parent itself in its
+ * sub-surface list. Makes stacking order manipulation easy.
+ */
+static struct weston_subsurface *
+weston_subsurface_create_for_parent(struct weston_surface *parent)
+{
+	struct weston_subsurface *sub;
+
+	sub = calloc(1, sizeof *sub);
+	if (!sub)
+		return NULL;
+
+	weston_subsurface_link(sub, parent, parent);
+
+	return sub;
+}
+
+static void
+subcompositor_get_subsurface(struct wl_client *client,
+			     struct wl_resource *resource,
+			     uint32_t id,
+			     struct wl_resource *surface_resource,
+			     struct wl_resource *parent_resource)
+{
+	struct weston_surface *surface = surface_resource->data;
+	struct weston_surface *parent = parent_resource->data;
+	struct weston_subsurface *sub;
+	static const char where[] = "get_subsurface: wl_subsurface@";
+
+	if (!wl_list_empty(&surface->subsurface_list)) {
+		wl_resource_post_error(resource,
+			WL_SUBCOMPOSITOR_ERROR_BAD_SURFACE,
+			"%s%d: wl_surface@%d is already a parent",
+			where, id, surface_resource->object.id);
+		return;
+	}
+
+	if (parent->configure == subsurface_configure) {
+		wl_resource_post_error(resource,
+			WL_SUBCOMPOSITOR_ERROR_BAD_PARENT,
+			"%s%d: parent wl_surface@%d is already a sub-surface",
+			where, id, parent_resource->object.id);
+		return;
+	}
+
+	if (surface->configure == subsurface_configure) {
+		wl_resource_post_error(resource,
+			WL_SUBCOMPOSITOR_ERROR_BAD_SURFACE,
+			"%s%d: wl_surface@%d is already a sub-surface",
+			where, id, surface_resource->object.id);
+		return;
+	}
+
+	if (surface->configure) {
+		wl_resource_post_error(resource,
+			WL_SUBCOMPOSITOR_ERROR_BAD_SURFACE,
+			"%s%d: wl_surface@%d already has a role",
+			where, id, surface_resource->object.id);
+		return;
+	}
+
+	/* make sure the parent is in its own list */
+	if (wl_list_empty(&parent->subsurface_list)) {
+		if (!weston_subsurface_create_for_parent(parent)) {
+			wl_resource_post_no_memory(resource);
+			return;
+		}
+	}
+
+	sub = weston_subsurface_create(id, surface, parent);
+	if (!sub) {
+		wl_resource_post_no_memory(resource);
+		return;
+	}
+
+	surface->configure = subsurface_configure;
+	surface->private = sub;
+	fprintf(stderr, "%s: surface %p, parent %p\n",
+		__func__, surface, parent);
+}
+
+static const struct wl_subcompositor_interface subcompositor_interface = {
+	subcompositor_get_subsurface
+};
+
+static void
+bind_subcompositor(struct wl_client *client,
+		   void *data, uint32_t version, uint32_t id)
+{
+	struct weston_compositor *compositor = data;
+
+	wl_client_add_object(client, &wl_subcompositor_interface,
+			     &subcompositor_interface, id, compositor);
+}
 
 WL_EXPORT void
 weston_compositor_wake(struct weston_compositor *compositor)
@@ -2991,6 +3353,10 @@ weston_compositor_init(struct weston_compositor *ec,
 
 	if (!wl_display_add_global(display, &wl_compositor_interface,
 				   ec, compositor_bind))
+		return -1;
+
+	if (!wl_display_add_global(display, &wl_subcompositor_interface,
+				   ec, bind_subcompositor))
 		return -1;
 
 	wl_list_init(&ec->surface_list);
