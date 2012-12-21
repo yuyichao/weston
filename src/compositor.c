@@ -1069,11 +1069,47 @@ surface_accumulate_damage(struct weston_surface *surface,
 }
 
 static void
+surface_list_add(struct weston_compositor *compositor,
+		 struct weston_surface *surface)
+{
+	struct weston_subsurface *sub;
+
+	if (wl_list_empty(&surface->subsurface_list)) {
+		weston_surface_update_transform(surface);
+		wl_list_insert(compositor->surface_list.prev, &surface->link);
+		return;
+	}
+
+	wl_list_for_each(sub, &surface->subsurface_list, parent_link) {
+		if (!weston_surface_is_mapped(sub->surface))
+			continue;
+
+		weston_surface_update_transform(sub->surface);
+
+		wl_list_insert(compositor->surface_list.prev,
+			       &sub->surface->link);
+	}
+}
+
+static void
+weston_compositor_build_surface_list(struct weston_compositor *compositor)
+{
+	struct weston_surface *surface;
+	struct weston_layer *layer;
+
+	wl_list_init(&compositor->surface_list);
+	wl_list_for_each(layer, &compositor->layer_list, link) {
+		wl_list_for_each(surface, &layer->surface_list, layer_link) {
+			surface_list_add(compositor, surface);
+		}
+	}
+}
+
+static void
 weston_output_repaint(struct weston_output *output, uint32_t msecs)
 {
 	struct weston_compositor *ec = output->compositor;
 	struct weston_surface *es;
-	struct weston_layer *layer;
 	struct weston_animation *animation, *next;
 	struct weston_frame_callback *cb, *cnext;
 	struct wl_list frame_callback_list;
@@ -1082,19 +1118,7 @@ weston_output_repaint(struct weston_output *output, uint32_t msecs)
 	weston_compositor_update_drag_surfaces(ec);
 
 	/* Rebuild the surface list and update surface transforms up front. */
-	wl_list_init(&ec->surface_list);
-	wl_list_init(&frame_callback_list);
-	wl_list_for_each(layer, &ec->layer_list, link) {
-		wl_list_for_each(es, &layer->surface_list, layer_link) {
-			weston_surface_update_transform(es);
-			wl_list_insert(ec->surface_list.prev, &es->link);
-			if (es->output == output) {
-				wl_list_insert_list(&frame_callback_list,
-						    &es->frame_callback_list);
-				wl_list_init(&es->frame_callback_list);
-			}
-		}
-	}
+	weston_compositor_build_surface_list(ec);
 
 	if (output->assign_planes && !output->disable_planes)
 		output->assign_planes(output);
@@ -1107,7 +1131,14 @@ weston_output_repaint(struct weston_output *output, uint32_t msecs)
 	pixman_region32_fini(&ec->primary_plane.opaque);
 	pixman_region32_init(&ec->primary_plane.opaque);
 
+	wl_list_init(&frame_callback_list);
 	wl_list_for_each(es, &ec->surface_list, link) {
+		if (es->output == output) {
+			wl_list_insert_list(&frame_callback_list,
+					    &es->frame_callback_list);
+			wl_list_init(&es->frame_callback_list);
+		}
+
 		surface_accumulate_damage(es, &opaque);
 
 		/* Both the renderer and the backend have seen the buffer
