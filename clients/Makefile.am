@@ -64,6 +64,7 @@ clients_programs =				\
 	clickdot				\
 	transformed				\
 	calibrator				\
+	subsurfaces				\
 	$(full_gl_client_programs)
 
 desktop_shell = weston-desktop-shell
@@ -122,6 +123,9 @@ eventdemo_LDADD = $(toolkit_libs)
 
 clickdot_SOURCES = clickdot.c
 clickdot_LDADD = $(toolkit_libs)
+
+subsurfaces_SOURCES = subsurfaces.c
+subsurfaces_LDADD = $(toolkit_libs)
 
 transformed_SOURCES = transformed.c
 transformed_LDADD = $(toolkit_libs)
