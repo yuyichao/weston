@@ -104,16 +104,28 @@
       Only one client can bind this interface at a time.
     </description>
 
-    <request name="set_surface">
+    <request name="get_input_panel_surface">
+      <arg name="id" type="new_id" interface="input_panel_surface"/>
+      <arg name="surface" type="object" interface="wl_surface"/>
+    </request>
+  </interface>
+
+  <interface name="input_panel_surface" version="1">
+    <request name="set_toplevel">
       <description summary="set the surface type as a keyboard">
 	A keybaord surface is only shown, when a text model is active
       </description>
-
-      <arg name="surface" type="object" interface="wl_surface"/>
-      <arg name="output" type="object" interface="wl_output"/>
     </request>
 
-  </interface>
+    <request name="set_transient">
+      <description summary="set the surface type as a keyboard">
+	A keyboard surface is only shown, when a text model is active
+      </description>
 
+      <arg name="parent" type="object" interface="wl_surface"/>
+      <arg name="x" type="int"/>
+      <arg name="y" type="int"/>
+    </request>
+  </interface>
 
 </protocol>
