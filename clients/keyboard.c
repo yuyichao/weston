@@ -30,7 +30,6 @@
 
 #include "window.h"
 #include "input-method-client-protocol.h"
-#include "text-client-protocol.h"
 
 struct virtual_keyboard {
 	struct input_panel *input_panel;
@@ -245,8 +244,8 @@ static const struct layout *
 get_current_layout(struct virtual_keyboard *keyboard)
 {
 	switch (keyboard->content_purpose) {
-		case TEXT_MODEL_CONTENT_PURPOSE_DIGITS:
-		case TEXT_MODEL_CONTENT_PURPOSE_NUMBER:
+		case WL_TEXT_MODEL_CONTENT_PURPOSE_DIGITS:
+		case WL_TEXT_MODEL_CONTENT_PURPOSE_NUMBER:
 			return &numeric_layout;
 		default:
 			return &normal_layout;

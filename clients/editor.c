@@ -34,7 +34,6 @@
 #include <pango/pangocairo.h>
 
 #include "window.h"
-#include "text-client-protocol.h"
 
 struct text_entry {
 	struct widget *widget;
@@ -53,7 +52,7 @@ struct text_entry {
 		PangoAttrList *attr_list;
 		int32_t cursor;
 	} preedit_info;
-	struct text_model *model;
+	struct wl_text_model *model;
 	PangoLayout *layout;
 	struct {
 		xkb_mod_mask_t shift_mask;
@@ -63,7 +62,7 @@ struct text_entry {
 };
 
 struct editor {
-	struct text_model_factory *text_model_factory;
+	struct wl_text_model_factory *text_model_factory;
 	struct display *display;
 	struct window *window;
 	struct widget *widget;
@@ -123,7 +122,7 @@ static void text_entry_commit_and_reset(struct text_entry *entry);
 
 static void
 text_model_commit_string(void *data,
-			 struct text_model *text_model,
+			 struct wl_text_model *text_model,
 			 uint32_t serial,
 			 const char *text,
 			 uint32_t index)
@@ -143,7 +142,7 @@ text_model_commit_string(void *data,
 
 static void
 text_model_preedit_string(void *data,
-			  struct text_model *text_model,
+			  struct wl_text_model *text_model,
 			  uint32_t serial,
 			  const char *text,
 			  const char *commit)
@@ -163,7 +162,7 @@ text_model_preedit_string(void *data,
 
 static void
 text_model_delete_surrounding_text(void *data,
-				   struct text_model *text_model,
+				   struct wl_text_model *text_model,
 				   uint32_t serial,
 				   int32_t index,
 				   uint32_t length)
@@ -195,7 +194,7 @@ text_model_delete_surrounding_text(void *data,
 
 static void
 text_model_preedit_styling(void *data,
-			   struct text_model *text_model,
+			   struct wl_text_model *text_model,
 			   uint32_t serial,
 			   uint32_t index,
 			   uint32_t length,
@@ -209,24 +208,24 @@ text_model_preedit_styling(void *data,
 		entry->preedit_info.attr_list = pango_attr_list_new();
 
 	switch (style) {
-		case TEXT_MODEL_PREEDIT_STYLE_DEFAULT:
-		case TEXT_MODEL_PREEDIT_STYLE_UNDERLINE:
+		case WL_TEXT_MODEL_PREEDIT_STYLE_DEFAULT:
+		case WL_TEXT_MODEL_PREEDIT_STYLE_UNDERLINE:
 			attr1 = pango_attr_underline_new(PANGO_UNDERLINE_SINGLE);
 			break;
-		case TEXT_MODEL_PREEDIT_STYLE_INCORRECT:
+		case WL_TEXT_MODEL_PREEDIT_STYLE_INCORRECT:
 			attr1 = pango_attr_underline_new(PANGO_UNDERLINE_ERROR);
 			attr2 = pango_attr_underline_color_new(65535, 0, 0);
 			break;
-		case TEXT_MODEL_PREEDIT_STYLE_SELECTION:
+		case WL_TEXT_MODEL_PREEDIT_STYLE_SELECTION:
 			attr1 = pango_attr_background_new(0.3 * 65535, 0.3 * 65535, 65535);
 			attr2 = pango_attr_foreground_new(65535, 65535, 65535);
 			break;
-		case TEXT_MODEL_PREEDIT_STYLE_HIGHLIGHT:
-		case TEXT_MODEL_PREEDIT_STYLE_ACTIVE:
+		case WL_TEXT_MODEL_PREEDIT_STYLE_HIGHLIGHT:
+		case WL_TEXT_MODEL_PREEDIT_STYLE_ACTIVE:
 			attr1 = pango_attr_underline_new(PANGO_UNDERLINE_SINGLE);
 			attr2 = pango_attr_weight_new(PANGO_WEIGHT_BOLD);
 			break;
-		case TEXT_MODEL_PREEDIT_STYLE_INACTIVE:
+		case WL_TEXT_MODEL_PREEDIT_STYLE_INACTIVE:
 			attr1 = pango_attr_underline_new(PANGO_UNDERLINE_SINGLE);
 			attr2 = pango_attr_foreground_new(0.3 * 65535, 0.3 * 65535, 0.3 * 65535);
 			break;
@@ -247,7 +246,7 @@ text_model_preedit_styling(void *data,
 
 static void
 text_model_preedit_cursor(void *data,
-			  struct text_model *text_model,
+			  struct wl_text_model *text_model,
 			  uint32_t serial,
 			  int32_t index)
 {
@@ -258,7 +257,7 @@ text_model_preedit_cursor(void *data,
 
 static void
 text_model_modifiers_map(void *data,
-			 struct text_model *text_model,
+			 struct wl_text_model *text_model,
 			 struct wl_array *map)
 {
 	struct text_entry *entry = data;
@@ -268,7 +267,7 @@ text_model_modifiers_map(void *data,
 
 static void
 text_model_keysym(void *data,
-		  struct text_model *text_model,
+		  struct wl_text_model *text_model,
 		  uint32_t serial,
 		  uint32_t time,
 		  uint32_t key,
@@ -337,25 +336,25 @@ text_model_keysym(void *data,
 
 static void
 text_model_selection_replacement(void *data,
-				 struct text_model *text_model)
+				 struct wl_text_model *text_model)
 {
 }
 
 static void
 text_model_direction(void *data,
-		     struct text_model *text_model)
+		     struct wl_text_model *text_model)
 {
 }
 
 static void
 text_model_locale(void *data,
-		  struct text_model *text_model)
+		  struct wl_text_model *text_model)
 {
 }
 
 static void
 text_model_enter(void *data,
-		 struct text_model *text_model,
+		 struct wl_text_model *text_model,
 		 struct wl_surface *surface)
 {
 	struct text_entry *entry = data;
@@ -370,7 +369,7 @@ text_model_enter(void *data,
 
 static void
 text_model_leave(void *data,
-		 struct text_model *text_model)
+		 struct wl_text_model *text_model)
 {
 	struct text_entry *entry = data;
 
@@ -381,7 +380,7 @@ text_model_leave(void *data,
 	widget_schedule_redraw(entry->widget);
 }
 
-static const struct text_model_listener text_model_listener = {
+static const struct wl_text_model_listener text_model_listener = {
 	text_model_commit_string,
 	text_model_preedit_string,
 	text_model_delete_surrounding_text,
@@ -409,8 +408,8 @@ text_entry_create(struct editor *editor, const char *text)
 	entry->active = 0;
 	entry->cursor = strlen(text);
 	entry->anchor = entry->cursor;
-	entry->model = text_model_factory_create_text_model(editor->text_model_factory);
-	text_model_add_listener(entry->model, &text_model_listener, entry);
+	entry->model = wl_text_model_factory_create_text_model(editor->text_model_factory);
+	wl_text_model_add_listener(entry->model, &text_model_listener, entry);
 
 	widget_set_redraw_handler(entry->widget, text_entry_redraw_handler);
 	widget_set_button_handler(entry->widget, text_entry_button_handler);
@@ -422,7 +421,7 @@ static void
 text_entry_destroy(struct text_entry *entry)
 {
 	widget_destroy(entry->widget);
-	text_model_destroy(entry->model);
+	wl_text_model_destroy(entry->model);
 	g_clear_object(&entry->layout);
 	free(entry->text);
 	free(entry);
@@ -491,18 +490,18 @@ text_entry_activate(struct text_entry *entry,
 
 	entry->serial++;
 
-	text_model_activate(entry->model,
-			    entry->serial,
-			    seat,
-			    surface);
+	wl_text_model_activate(entry->model,
+			       entry->serial,
+			       seat,
+			       surface);
 }
 
 static void
 text_entry_deactivate(struct text_entry *entry,
 		      struct wl_seat *seat)
 {
-	text_model_deactivate(entry->model,
-			      seat);
+	wl_text_model_deactivate(entry->model,
+				 seat);
 }
 
 static void
@@ -571,14 +570,14 @@ text_entry_update_layout(struct text_entry *entry)
 static void
 text_entry_update(struct text_entry *entry)
 {
-	text_model_set_content_type(entry->model,
-				    TEXT_MODEL_CONTENT_HINT_NONE,
-				    entry->content_purpose);
+	wl_text_model_set_content_type(entry->model,
+				       WL_TEXT_MODEL_CONTENT_HINT_NONE,
+				       entry->content_purpose);
 
-	text_model_set_surrounding_text(entry->model,
-					entry->text,
-					entry->cursor,
-					entry->anchor);
+	wl_text_model_set_surrounding_text(entry->model,
+					   entry->text,
+					   entry->cursor,
+					   entry->anchor);
 }
 
 static void
@@ -674,9 +673,9 @@ text_entry_try_invoke_preedit_action(struct text_entry *entry,
 	}
 
 	if (state == WL_POINTER_BUTTON_STATE_RELEASED)
-		text_model_invoke_action(entry->model,
-					 button,
-					 cursor - entry->cursor);
+		wl_text_model_invoke_action(entry->model,
+					    button,
+					    cursor - entry->cursor);
 
 	return 1;
 }
@@ -696,7 +695,7 @@ text_entry_set_cursor_position(struct text_entry *entry,
 
 	entry->serial++;
 
-	text_model_reset(entry->model, entry->serial);
+	wl_text_model_reset(entry->model, entry->serial);
 
 	text_entry_update_layout(entry);
 
@@ -1005,10 +1004,10 @@ global_handler(struct display *display, uint32_t name,
 {
 	struct editor *editor = data;
 
-	if (!strcmp(interface, "text_model_factory")) {
+	if (!strcmp(interface, "wl_text_model_factory")) {
 		editor->text_model_factory =
 			display_bind(display, name,
-				     &text_model_factory_interface, 1);
+				     &wl_text_model_factory_interface, 1);
 	}
 }
 
@@ -1037,7 +1036,7 @@ main(int argc, char *argv[])
 
 	editor.entry = text_entry_create(&editor, "Entry");
 	editor.editor = text_entry_create(&editor, "Numeric");
-	editor.editor->content_purpose = TEXT_MODEL_CONTENT_PURPOSE_NUMBER;
+	editor.editor->content_purpose = WL_TEXT_MODEL_CONTENT_PURPOSE_NUMBER;
 
 	window_set_title(editor.window, "Text Editor");
 	window_set_key_handler(editor.window, key_handler);

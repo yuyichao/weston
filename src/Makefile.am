@@ -26,8 +26,6 @@ weston_SOURCES =				\
 	text-cursor-position-server-protocol.h	\
 	zoom.c					\
 	text-backend.c				\
-	text-protocol.c				\
-	text-server-protocol.h			\
 	input-method-protocol.c			\
 	input-method-server-protocol.h		\
 	workspaces-protocol.c			\
@@ -227,8 +225,6 @@ BUILT_SOURCES =					\
 	tablet-shell-server-protocol.h		\
 	desktop-shell-protocol.c		\
 	desktop-shell-server-protocol.h		\
-	text-protocol.c				\
-	text-server-protocol.h			\
 	input-method-protocol.c			\
 	input-method-server-protocol.h		\
 	workspaces-server-protocol.h		\

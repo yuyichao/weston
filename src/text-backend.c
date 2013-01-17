@@ -25,14 +25,13 @@
 #include <string.h>
 
 #include "compositor.h"
-#include "text-server-protocol.h"
 #include "input-method-server-protocol.h"
 
 struct input_method;
 struct input_method_context;
 struct text_backend;
 
-struct text_model {
+struct wl_text_model {
 	struct wl_resource resource;
 
 	struct weston_compositor *ec;
@@ -42,7 +41,7 @@ struct text_model {
 	struct wl_surface *surface;
 };
 
-struct text_model_factory {
+struct wl_text_model_factory {
 	struct wl_global *text_model_factory_global;
 	struct wl_listener destroy_listener;
 
@@ -55,7 +54,7 @@ struct input_method {
 	struct wl_listener destroy_listener;
 
 	struct weston_seat *seat;
-	struct text_model *model;
+	struct wl_text_model *model;
 
 	struct wl_list link;
 
@@ -71,7 +70,7 @@ struct input_method {
 struct input_method_context {
 	struct wl_resource resource;
 
-	struct text_model *model;
+	struct wl_text_model *model;
 	struct input_method *input_method;
 
 	struct wl_list link;
@@ -93,7 +92,7 @@ struct text_backend {
 	struct wl_listener destroy_listener;
 };
 
-static void input_method_context_create(struct text_model *model,
+static void input_method_context_create(struct wl_text_model *model,
 					struct input_method *input_method,
 					uint32_t serial);
 static void input_method_context_end_keyboard_grab(struct input_method_context *context);
@@ -101,7 +100,7 @@ static void input_method_context_end_keyboard_grab(struct input_method_context *
 static void input_method_init_seat(struct weston_seat *seat);
 
 static void
-deactivate_text_model(struct text_model *text_model,
+deactivate_text_model(struct wl_text_model *text_model,
 		      struct input_method *input_method)
 {
 	struct weston_compositor *ec = text_model->ec;
@@ -117,15 +116,15 @@ deactivate_text_model(struct text_model *text_model,
 		input_method->model = NULL;
 		input_method->context = NULL;
 		wl_signal_emit(&ec->hide_input_panel_signal, ec);
-		text_model_send_leave(&text_model->resource);
+		wl_text_model_send_leave(&text_model->resource);
 	}
 }
 
 static void
 destroy_text_model(struct wl_resource *resource)
 {
-	struct text_model *text_model =
-		container_of(resource, struct text_model, resource);
+	struct wl_text_model *text_model =
+		container_of(resource, struct wl_text_model, resource);
 	struct input_method *input_method, *next;
 
 	wl_list_for_each_safe(input_method, next, &text_model->input_methods, link)
@@ -141,7 +140,7 @@ text_model_set_surrounding_text(struct wl_client *client,
 				uint32_t cursor,
 				uint32_t anchor)
 {
-	struct text_model *text_model = resource->data;
+	struct wl_text_model *text_model = resource->data;
 	struct input_method *input_method, *next;
 
 	wl_list_for_each_safe(input_method, next, &text_model->input_methods, link) {
@@ -161,10 +160,10 @@ text_model_activate(struct wl_client *client,
 		    struct wl_resource *seat,
 		    struct wl_resource *surface)
 {
-	struct text_model *text_model = resource->data;
+	struct wl_text_model *text_model = resource->data;
 	struct weston_seat *weston_seat = seat->data;
 	struct input_method *input_method = weston_seat->input_method;
-	struct text_model *old = weston_seat->input_method->model;
+	struct wl_text_model *old = weston_seat->input_method->model;
 	struct weston_compositor *ec = text_model->ec;
 
 	if (old == text_model)
@@ -185,7 +184,7 @@ text_model_activate(struct wl_client *client,
 
 	wl_signal_emit(&ec->show_input_panel_signal, ec);
 
-	text_model_send_enter(&text_model->resource, &text_model->surface->resource);
+	wl_text_model_send_enter(&text_model->resource, &text_model->surface->resource);
 }
 
 static void
@@ -193,7 +192,7 @@ text_model_deactivate(struct wl_client *client,
 		      struct wl_resource *resource,
 		      struct wl_resource *seat)
 {
-	struct text_model *text_model = resource->data;
+	struct wl_text_model *text_model = resource->data;
 	struct weston_seat *weston_seat = seat->data;
 
 	deactivate_text_model(text_model,
@@ -205,7 +204,7 @@ text_model_reset(struct wl_client *client,
 		 struct wl_resource *resource,
 		 uint32_t serial)
 {
-	struct text_model *text_model = resource->data;
+	struct wl_text_model *text_model = resource->data;
 	struct input_method *input_method, *next;
 
 	wl_list_for_each_safe(input_method, next, &text_model->input_methods, link) {
@@ -237,7 +236,7 @@ text_model_set_content_type(struct wl_client *client,
 			    uint32_t hint,
 			    uint32_t purpose)
 {
-	struct text_model *text_model = resource->data;
+	struct wl_text_model *text_model = resource->data;
 	struct input_method *input_method, *next;
 
 	wl_list_for_each_safe(input_method, next, &text_model->input_methods, link) {
@@ -253,7 +252,7 @@ text_model_invoke_action(struct wl_client *client,
 			 uint32_t button,
 			 uint32_t index)
 {
-	struct text_model *text_model = resource->data;
+	struct wl_text_model *text_model = resource->data;
 	struct input_method *input_method, *next;
 
 	wl_list_for_each_safe(input_method, next, &text_model->input_methods, link) {
@@ -263,7 +262,7 @@ text_model_invoke_action(struct wl_client *client,
 	}
 }
 
-static const struct text_model_interface text_model_implementation = {
+static const struct wl_text_model_interface text_model_implementation = {
 	text_model_set_surrounding_text,
 	text_model_activate,
 	text_model_deactivate,
@@ -278,13 +277,13 @@ static void text_model_factory_create_text_model(struct wl_client *client,
 						 struct wl_resource *resource,
 						 uint32_t id)
 {
-	struct text_model_factory *text_model_factory = resource->data;
-	struct text_model *text_model;
+	struct wl_text_model_factory *text_model_factory = resource->data;
+	struct wl_text_model *text_model;
 
 	text_model = calloc(1, sizeof *text_model);
 
 	text_model->resource.object.id = id;
-	text_model->resource.object.interface = &text_model_interface;
+	text_model->resource.object.interface = &wl_text_model_interface;
 	text_model->resource.object.implementation =
 		(void (**)(void)) &text_model_implementation;
 
@@ -298,7 +297,7 @@ static void text_model_factory_create_text_model(struct wl_client *client,
 	wl_client_add_resource(client, &text_model->resource);
 };
 
-static const struct text_model_factory_interface text_model_factory_implementation = {
+static const struct wl_text_model_factory_interface text_model_factory_implementation = {
 	text_model_factory_create_text_model
 };
 
@@ -308,11 +307,11 @@ bind_text_model_factory(struct wl_client *client,
 			uint32_t version,
 			uint32_t id)
 {
-	struct text_model_factory *text_model_factory = data;
+	struct wl_text_model_factory *text_model_factory = data;
 
 	/* No checking for duplicate binding necessary.
 	 * No events have to be sent, so we don't need the return value. */
-	wl_client_add_object(client, &text_model_factory_interface,
+	wl_client_add_object(client, &wl_text_model_factory_interface,
 			     &text_model_factory_implementation,
 			     id, text_model_factory);
 }
@@ -320,8 +319,8 @@ bind_text_model_factory(struct wl_client *client,
 static void
 text_model_factory_notifier_destroy(struct wl_listener *listener, void *data)
 {
-	struct text_model_factory *text_model_factory =
-		container_of(listener, struct text_model_factory, destroy_listener);
+	struct wl_text_model_factory *text_model_factory =
+		container_of(listener, struct wl_text_model_factory, destroy_listener);
 
 	wl_display_remove_global(text_model_factory->ec->wl_display,
 				 text_model_factory->text_model_factory_global);
@@ -332,7 +331,7 @@ text_model_factory_notifier_destroy(struct wl_listener *listener, void *data)
 static void
 text_model_factory_create(struct weston_compositor *ec)
 {
-	struct text_model_factory *text_model_factory;
+	struct wl_text_model_factory *text_model_factory;
 
 	text_model_factory = calloc(1, sizeof *text_model_factory);
 
@@ -340,7 +339,7 @@ text_model_factory_create(struct weston_compositor *ec)
 
 	text_model_factory->text_model_factory_global =
 		wl_display_add_global(ec->wl_display,
-				      &text_model_factory_interface,
+				      &wl_text_model_factory_interface,
 				      text_model_factory, bind_text_model_factory);
 
 	text_model_factory->destroy_listener.notify = text_model_factory_notifier_destroy;
@@ -363,7 +362,7 @@ input_method_context_commit_string(struct wl_client *client,
 {
 	struct input_method_context *context = resource->data;
 
-	text_model_send_commit_string(&context->model->resource, serial, text, index);
+	wl_text_model_send_commit_string(&context->model->resource, serial, text, index);
 }
 
 static void
@@ -375,7 +374,7 @@ input_method_context_preedit_string(struct wl_client *client,
 {
 	struct input_method_context *context = resource->data;
 
-	text_model_send_preedit_string(&context->model->resource, serial, text, commit);
+	wl_text_model_send_preedit_string(&context->model->resource, serial, text, commit);
 }
 
 static void
@@ -388,7 +387,7 @@ input_method_context_preedit_styling(struct wl_client *client,
 {
 	struct input_method_context *context = resource->data;
 
-	text_model_send_preedit_styling(&context->model->resource, serial, index, length, style);
+	wl_text_model_send_preedit_styling(&context->model->resource, serial, index, length, style);
 }
 
 static void
@@ -399,7 +398,7 @@ input_method_context_preedit_cursor(struct wl_client *client,
 {
 	struct input_method_context *context = resource->data;
 
-	text_model_send_preedit_cursor(&context->model->resource, serial, cursor);
+	wl_text_model_send_preedit_cursor(&context->model->resource, serial, cursor);
 }
 
 static void
@@ -411,7 +410,7 @@ input_method_context_delete_surrounding_text(struct wl_client *client,
 {
 	struct input_method_context *context = resource->data;
 
-	text_model_send_delete_surrounding_text(&context->model->resource, serial, index, length);
+	wl_text_model_send_delete_surrounding_text(&context->model->resource, serial, index, length);
 }
 
 static void
@@ -421,7 +420,7 @@ input_method_context_modifiers_map(struct wl_client *client,
 {
 	struct input_method_context *context = resource->data;
 
-	text_model_send_modifiers_map(&context->model->resource, map);
+	wl_text_model_send_modifiers_map(&context->model->resource, map);
 }
 
 static void
@@ -435,8 +434,8 @@ input_method_context_keysym(struct wl_client *client,
 {
 	struct input_method_context *context = resource->data;
 
-	text_model_send_keysym(&context->model->resource, serial, time,
-			       sym, state, modifiers);
+	wl_text_model_send_keysym(&context->model->resource, serial, time,
+				  sym, state, modifiers);
 }
 
 static void
@@ -578,7 +577,7 @@ destroy_input_method_context(struct wl_resource *resource)
 }
 
 static void
-input_method_context_create(struct text_model *model,
+input_method_context_create(struct wl_text_model *model,
 			    struct input_method *input_method,
 			    uint32_t serial)
 {

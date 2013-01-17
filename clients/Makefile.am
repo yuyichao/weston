@@ -132,9 +132,7 @@ calibrator_LDADD = $(toolkit_libs)
 if HAVE_PANGO
 pango_programs = editor
 editor_SOURCES = 				\
-	editor.c				\
-	text-protocol.c				\
-	text-client-protocol.h
+	editor.c
 editor_LDADD = $(toolkit_libs) $(PANGO_LIBS)
 editor_CPPFLAGS = $(AM_CPPFLAGS) $(PANGO_CFLAGS)
 endif
@@ -177,8 +175,6 @@ BUILT_SOURCES =					\
 	screenshooter-protocol.c		\
 	text-cursor-position-client-protocol.h	\
 	text-cursor-position-protocol.c		\
-	text-protocol.c				\
-	text-client-protocol.h			\
 	input-method-protocol.c			\
 	input-method-client-protocol.h		\
 	desktop-shell-client-protocol.h		\
