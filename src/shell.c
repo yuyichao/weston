@@ -3368,14 +3368,25 @@ bind_screensaver(struct wl_client *client,
 static void
 input_panel_configure(struct weston_surface *surface, int32_t sx, int32_t sy, int32_t width, int32_t height)
 {
+	struct input_panel_surface *ip_surface = surface->private;
+	struct desktop_shell *shell = ip_surface->shell;
 	struct weston_mode *mode;
 	float x, y;
+	uint32_t show_surface = 0;
 
 	if (width == 0)
 		return;
 
-	if (!weston_surface_is_mapped(surface))
-		return;
+	if (!weston_surface_is_mapped(surface)) {
+		if (!shell->showing_input_panels)
+			return;
+
+		wl_list_insert(&shell->input_panel_layer.surface_list,
+			       &surface->layer_link);
+		surface->geometry.dirty = 1;
+		weston_surface_update_transform(surface);
+		show_surface = 1;
+	}
 
 	mode = surface->output->current;
 	x = (mode->width - width) / 2;
@@ -3388,6 +3399,11 @@ input_panel_configure(struct weston_surface *surface, int32_t sx, int32_t sy, in
 				 surface->output->x + x,
 				 surface->output->y + y,
 				 width, height);
+
+	if (show_surface) {
+		weston_surface_damage(surface);
+		weston_slide_run(surface, surface->geometry.height, 0, NULL, NULL);
+	}
 }
 
 static void
