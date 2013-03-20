@@ -2938,6 +2938,9 @@ show_input_panels(struct wl_listener *listener, void *data)
 	wl_list_for_each_safe(surface, next,
 			      &shell->input_panel.surfaces, link) {
 		ws = surface->surface;
+		if (!weston_surface_is_mapped(ws)) {
+			continue;
+		}
 		wl_list_insert(&shell->input_panel_layer.surface_list,
 			       &ws->layer_link);
 		weston_surface_geometry_dirty(ws);
@@ -3407,7 +3410,7 @@ input_panel_configure(struct weston_surface *surface, int32_t sx, int32_t sy, in
 
 		wl_list_insert(&shell->input_panel_layer.surface_list,
 			       &surface->layer_link);
-		surface->geometry.dirty = 1;
+		weston_surface_geometry_dirty(surface);
 		weston_surface_update_transform(surface);
 		show_surface = 1;
 	}
