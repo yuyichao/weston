@@ -79,6 +79,7 @@ struct input_panel_surface {
 	struct weston_surface *surface;
 	struct wl_listener surface_destroy_listener;
 
+	struct weston_output *output;
 	uint32_t panel;
 };
 
@@ -2938,9 +2939,8 @@ show_input_panels(struct wl_listener *listener, void *data)
 	wl_list_for_each_safe(surface, next,
 			      &shell->input_panel.surfaces, link) {
 		ws = surface->surface;
-		if (!weston_surface_is_mapped(ws)) {
+		if (!ws->buffer_ref.buffer)
 			continue;
-		}
 		wl_list_insert(&shell->input_panel_layer.surface_list,
 			       &ws->layer_link);
 		weston_surface_geometry_dirty(ws);
@@ -2979,10 +2979,6 @@ update_input_panels(struct wl_listener *listener, void *data)
 			     update_input_panel_listener);
 
 	memcpy(&shell->text_input.cursor_rectangle, data, sizeof(pixman_box32_t));
-
-	fprintf(stderr, "%s, %p cursor: %d, %d, %d, %d\n", __FUNCTION__, shell,
-		shell->text_input.cursor_rectangle.x1, shell->text_input.cursor_rectangle.y1,
-		shell->text_input.cursor_rectangle.x2, shell->text_input.cursor_rectangle.y2);
 }
 
 static void
@@ -3408,37 +3404,31 @@ input_panel_configure(struct weston_surface *surface, int32_t sx, int32_t sy, in
 		if (!shell->showing_input_panels)
 			return;
 
-		wl_list_insert(&shell->input_panel_layer.surface_list,
-			       &surface->layer_link);
-		weston_surface_geometry_dirty(surface);
-		weston_surface_update_transform(surface);
 		show_surface = 1;
 	}
 
-	mode = surface->output->current;
+	fprintf(stderr, "%s panel: %d, output: %p\n", __FUNCTION__, ip_surface->panel, ip_surface->output);
 
 	if (ip_surface->panel) {
-		fprintf(stderr, "%s, %p cursor: %d, %d, %d, %d\n", __FUNCTION__, shell,
-			shell->text_input.cursor_rectangle.x1, shell->text_input.cursor_rectangle.y1,
-			shell->text_input.cursor_rectangle.x2, shell->text_input.cursor_rectangle.y2);
-
 		x = shell->text_input.surface->geometry.x + shell->text_input.cursor_rectangle.x2;
 		y = shell->text_input.surface->geometry.y + shell->text_input.cursor_rectangle.y2;
 	} else {
-		x = surface->output->x + (mode->width - width) / 2;
-		y = surface->output->y + mode->height - height;
+		mode = ip_surface->output->current;
+
+		x = ip_surface->output->x + (mode->width - width) / 2;
+		y = ip_surface->output->y + mode->height - height;
+
+		fprintf(stderr, "x, y: %f, %f\n", x, y);
 	}
-
-	fprintf(stderr, "%s %f, %f\n", __FUNCTION__, x, y);
-
-	/* Don't map the input panel here, wait for
-	 * show_input_panels signal. */
 
 	weston_surface_configure(surface,
 				 x, y,
 				 width, height);
 
 	if (show_surface) {
+		wl_list_insert(&shell->input_panel_layer.surface_list,
+			       &surface->layer_link);
+		weston_surface_update_transform(surface);
 		weston_surface_damage(surface);
 		weston_slide_run(surface, surface->geometry.height, 0, NULL, NULL);
 	}
@@ -3510,6 +3500,7 @@ create_input_panel_surface(struct desktop_shell *shell,
 static void
 input_panel_surface_set_toplevel(struct wl_client *client,
 				 struct wl_resource *resource,
+				 struct wl_resource *output_resource,
 				 uint32_t position)
 {
 	struct input_panel_surface *input_panel_surface = resource->data;
@@ -3518,7 +3509,12 @@ input_panel_surface_set_toplevel(struct wl_client *client,
 	wl_list_insert(&shell->input_panel.surfaces,
 		       &input_panel_surface->link);
 
+	input_panel_surface->output = output_resource->data;
 	input_panel_surface->panel = 0;
+
+	fprintf(stderr, "%s panel: %d, output: %p\n", __FUNCTION__,
+		input_panel_surface->panel,
+		input_panel_surface->output);
 }
 
 static void
