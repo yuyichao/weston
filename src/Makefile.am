@@ -43,7 +43,8 @@ weston_SOURCES =				\
 	../shared/matrix.c			\
 	../shared/matrix.h			\
 	weston-launch.h				\
-	weston-egl-ext.h
+	weston-egl-ext.h			\
+	input-panel.c
 
 if ENABLE_EGL
 weston_SOURCES +=				\

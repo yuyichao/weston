@@ -48,6 +48,7 @@ struct shell_surface;
 struct weston_seat;
 struct weston_output;
 struct input_method;
+struct input_panel;
 
 enum weston_keyboard_modifier {
 	MODIFIER_CTRL = (1 << 0),
@@ -353,6 +354,8 @@ struct weston_compositor {
 	struct xkb_rule_names xkb_names;
 	struct xkb_context *xkb_context;
 	struct weston_xkb_info xkb_info;
+
+	struct input_panel *input_panel;
 };
 
 struct weston_buffer_reference {
@@ -808,6 +811,16 @@ text_cursor_position_notifier_create(struct weston_compositor *ec);
 
 int
 text_backend_init(struct weston_compositor *ec);
+
+struct input_panel*
+input_panel_create(struct weston_compositor *ec);
+
+void
+input_panel_show_layer(struct input_panel *input_panel,
+		       struct weston_layer *previous_layer,
+		       struct weston_layer *next_layer);
+void
+input_panel_hide_layer(struct input_panel *panel);
 
 struct weston_process;
 typedef void (*weston_process_cleanup_func_t)(struct weston_process *process,
