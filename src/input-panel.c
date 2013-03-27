@@ -90,8 +90,6 @@ show_input_panels(struct wl_listener *listener, void *data)
 	if (input_panel->layer.visible) {
 		wl_list_insert(&input_panel->layer.previous->link,
 			       &input_panel->layer.input_panel.link);
-		wl_list_insert(&input_panel->layer.input_panel.link,
-			       &input_panel->layer.next->link);
 	}
 
 	wl_list_for_each_safe(surface, next,
@@ -100,6 +98,8 @@ show_input_panels(struct wl_listener *listener, void *data)
 		if (!ws->buffer_ref.buffer)
 			continue;
 		weston_surface_geometry_dirty(ws);
+		wl_list_insert(&input_panel->layer.input_panel.surface_list,
+			       &ws->layer_link);
 		weston_surface_update_transform(ws);
 		weston_surface_damage(ws);
 		weston_slide_run(ws, ws->geometry.height, 0, NULL, NULL);
