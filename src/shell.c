@@ -564,7 +564,9 @@ activate_workspace(struct desktop_shell *shell, unsigned int index)
 	struct workspace *ws;
 
 	ws = get_workspace(shell, index);
-	wl_list_insert(&shell->panel_layer.link, &ws->layer.link);
+	input_panel_show_layer(shell->compositor->input_panel,
+			       &shell->panel_layer,
+			       &ws->layer);
 
 	shell->workspaces.current = index;
 }

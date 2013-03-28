@@ -67,9 +67,24 @@ struct input_panel_surface {
 	struct wl_listener surface_destroy_listener;
 
 	struct weston_output *output;
-	uint32_t panel;
+	uint32_t overlay_panel;
 };
 
+static void
+map_input_panel_surface(struct input_panel *input_panel,
+			struct input_panel_surface *input_panel_surface)
+{
+	struct weston_surface *surface = input_panel_surface->surface;
+
+	weston_surface_geometry_dirty(surface);
+	wl_list_insert(&input_panel->layer.input_panel.surface_list,
+		       &surface->layer_link);
+	weston_surface_update_transform(surface);
+	weston_surface_damage(surface);
+
+	if (!input_panel_surface->overlay_panel)
+		weston_slide_run(surface, surface->geometry.height, 0, NULL, NULL);
+}
 
 static void
 show_input_panels(struct wl_listener *listener, void *data)
@@ -81,6 +96,12 @@ show_input_panels(struct wl_listener *listener, void *data)
 	struct weston_surface *ws;
 
 	input_panel->text_input.surface = (struct weston_surface*)data;
+
+	fprintf(stderr,
+		"%s layer visible: %d input panel visible: %d\n",
+		__FUNCTION__,
+		input_panel->layer.visible,
+		input_panel->showing_input_panels);
 
 	if (input_panel->showing_input_panels)
 		return;
@@ -97,12 +118,7 @@ show_input_panels(struct wl_listener *listener, void *data)
 		ws = surface->surface;
 		if (!ws->buffer_ref.buffer)
 			continue;
-		weston_surface_geometry_dirty(ws);
-		wl_list_insert(&input_panel->layer.input_panel.surface_list,
-			       &ws->layer_link);
-		weston_surface_update_transform(ws);
-		weston_surface_damage(ws);
-		weston_slide_run(ws, ws->geometry.height, 0, NULL, NULL);
+		map_input_panel_surface(input_panel, surface);
 	}
 }
 
@@ -128,13 +144,41 @@ hide_input_panels(struct wl_listener *listener, void *data)
 }
 
 static void
+overlay_panel_get_position(struct input_panel_surface *surface,
+			   float *x, float *y)
+{
+	struct input_panel *input_panel = surface->input_panel;
+
+	if (!surface->overlay_panel) {
+		fprintf(stderr, "%s: surface is not overlay panel\n", __FUNCTION__);
+		return;
+	}
+
+	*x = input_panel->text_input.surface->geometry.x + input_panel->text_input.cursor_rectangle.x2;
+	*y = input_panel->text_input.surface->geometry.y + input_panel->text_input.cursor_rectangle.y2;
+}
+
+static void
 update_input_panels(struct wl_listener *listener, void *data)
 {
 	struct input_panel *input_panel =
 		container_of(listener, struct input_panel,
 			     update_input_panel_listener);
+	struct input_panel_surface *surface, *next;
+	float x = 0, y = 0;
 
 	memcpy(&input_panel->text_input.cursor_rectangle, data, sizeof(pixman_box32_t));
+
+	wl_list_for_each_safe(surface, next,
+			      &input_panel->surfaces, link) {
+		if (!surface->overlay_panel)
+			continue;
+		if (!weston_surface_is_mapped(surface->surface))
+			continue;
+		overlay_panel_get_position(surface, &x, &y);
+		weston_surface_set_position(surface->surface, x, y);
+		weston_surface_update_transform(surface->surface);
+	}
 }
 
 
@@ -145,21 +189,12 @@ input_panel_configure(struct weston_surface *surface, int32_t sx, int32_t sy, in
 	struct input_panel *input_panel = ip_surface->input_panel;
 	struct weston_mode *mode;
 	float x, y;
-	uint32_t show_surface = 0;
 
 	if (width == 0)
 		return;
 
-	if (!weston_surface_is_mapped(surface)) {
-		if (!input_panel->showing_input_panels)
-			return;
-
-		show_surface = 1;
-	}
-
-	if (ip_surface->panel) {
-		x = input_panel->text_input.surface->geometry.x + input_panel->text_input.cursor_rectangle.x2;
-		y = input_panel->text_input.surface->geometry.y + input_panel->text_input.cursor_rectangle.y2;
+	if (ip_surface->overlay_panel) {
+		overlay_panel_get_position(ip_surface, &x, &y);
 	} else {
 		mode = ip_surface->output->current;
 
@@ -171,13 +206,8 @@ input_panel_configure(struct weston_surface *surface, int32_t sx, int32_t sy, in
 				 x, y,
 				 width, height);
 
-	if (show_surface) {
-		wl_list_insert(&input_panel->layer.input_panel.surface_list,
-			       &surface->layer_link);
-		weston_surface_update_transform(surface);
-		weston_surface_damage(surface);
-		weston_slide_run(surface, surface->geometry.height, 0, NULL, NULL);
-	}
+	if (!weston_surface_is_mapped(surface) && input_panel->showing_input_panels)
+		map_input_panel_surface(input_panel, ip_surface);
 }
 
 static void
@@ -256,7 +286,7 @@ input_panel_surface_set_toplevel(struct wl_client *client,
 		       &input_panel_surface->link);
 
 	input_panel_surface->output = output_resource->data;
-	input_panel_surface->panel = 0;
+	input_panel_surface->overlay_panel = 0;
 }
 
 static void
@@ -269,7 +299,7 @@ input_panel_surface_set_panel(struct wl_client *client,
 	wl_list_insert(&input_panel->surfaces,
 		       &input_panel_surface->link);
 
-	input_panel_surface->panel = 1;
+	input_panel_surface->overlay_panel = 1;
 }
 
 static const struct input_panel_surface_interface input_panel_surface_implementation = {
@@ -368,7 +398,7 @@ bind_input_panel(struct wl_client *client,
 	input_panel->binding = resource;
 }
 
-struct input_panel *
+WL_EXPORT struct input_panel *
 input_panel_create(struct weston_compositor *ec)
 {
 	struct input_panel *input_panel;
@@ -398,7 +428,7 @@ input_panel_create(struct weston_compositor *ec)
 	return input_panel;
 }
 
-void
+WL_EXPORT void
 input_panel_show_layer(struct input_panel *input_panel,
 		       struct weston_layer *previous,
 		       struct weston_layer *next)
@@ -424,7 +454,7 @@ input_panel_show_layer(struct input_panel *input_panel,
 	}
 }
 
-void
+WL_EXPORT void
 input_panel_hide_layer(struct input_panel *input_panel)
 {
 	if (!input_panel->layer.visible) {

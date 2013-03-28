@@ -128,6 +128,7 @@ static void text_entry_delete_selected_text(struct text_entry *entry);
 static void text_entry_reset_preedit(struct text_entry *entry);
 static void text_entry_commit_and_reset(struct text_entry *entry);
 static void text_entry_get_cursor_rectangle(struct text_entry *entry, struct rectangle *rectangle);
+static void text_entry_update(struct text_entry *entry);
 
 static void
 text_input_commit_string(void *data,
@@ -166,6 +167,8 @@ text_input_preedit_string(void *data,
 	entry->preedit_info.cursor = 0;
 	entry->preedit_info.attr_list = NULL;
 
+	text_entry_update(entry);
+	
 	widget_schedule_redraw(entry->widget);
 }
 
